@@ -1,0 +1,36 @@
+{
+  "metadata": {
+    "center_freq": 866500000.0,
+    "sample_rate": 2000000.0,
+    "gain": 20.0,
+    "duration": 1.0,
+    "start_time": "2026-03-02T16:40:19.705457",
+    "num_samples": 2000000,
+    "synthetic": true,
+    "ground_truth_events": [
+      {
+        "time_offset": 0.25,
+        "phase": 5.347392786823326,
+        "rssi": -18.02445183685413
+      },
+      {
+        "time_offset": 0.5,
+        "phase": 3.872204776593343,
+        "rssi": -20.108117426311516
+      },
+      {
+        "time_offset": 0.75,
+        "phase": 6.12684660522702,
+        "rssi": -20.26676716137123
+      }
+    ]
+  },
+  "processing": {
+    "threshold": 3
+  },
+  "num_bursts": 3,
+  "bursts": [
+    {
+      "burst_id": 0,
+      "offset_seconds": 0.25,
+      "phase": 
