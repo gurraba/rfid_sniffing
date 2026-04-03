@@ -25,13 +25,15 @@ def plot_phase_rssi(results):
     times = np.array([r['offset_seconds'] for r in results])
     phases = np.array([r['phase'] for r in results])
     rssis = np.array([r['rssi'] for r in results])
+    corrected_phases = np.array([r['frequency_corrected_phase'] for r in results])
     
     # UNWRAP phase to remove jumps at ±π
     phases_unwrapped = rfid.custom_phase_unwrap(phases)
+    corrected_phases_unwrapped = rfid.custom_phase_unwrap(corrected_phases)
     
 
 
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+    fig, axes = plt.subplots(4, 1, figsize=(14, 10))
     
     # Raw phase (wrapped)
     axes[0].plot(times, phases, 'bo-', alpha=0.7, markersize=4)
@@ -54,6 +56,13 @@ def plot_phase_rssi(results):
     axes[2].set_ylabel('RSSI (dB)', fontsize=12)
     axes[2].set_title('RSSI After Each Detected Preamble', fontsize=14, fontweight='bold')
     axes[2].grid(True, alpha=0.3)
+    
+    # Frequency correction offset
+    axes[3].plot(times, corrected_phases_unwrapped, 'mo-', alpha=0.7, markersize=4)
+    axes[3].set_xlabel('Time (s)', fontsize=12)
+    axes[3].set_ylabel('Phase  (rad)', fontsize=12)
+    axes[3].set_title('Frequency-Corrected Phase', fontsize=14, fontweight='bold')
+    axes[3].grid(True, alpha=0.3)
     
     plt.tight_layout()
     plt.show()
@@ -108,7 +117,8 @@ def plot_capture(samples, sample_rate, center_freq, output_file=None,
         print("Warning: No significant signal found")
         return
     
-    # Plot 1: Magnitude
+
+    # Plot 1: I/Q magnitude
     axes[0].plot(t[nonzero[0]:nonzero[-1]], 
                  np.abs(samples[nonzero[0]:nonzero[-1]]), 
                  linewidth=0.5, color='green')
@@ -269,28 +279,39 @@ def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
     
     Returns: list of detected bursts with phase/RSSI
     """
-    
-    samples = rfid.correct_frequency_offset(samples, sample_rate, 2443.1957)
+
     
     print("Preprocessing...")
     iq_clean = rfid.preprocess_rfid_iq(samples, sample_rate)
 
-
     # let's find preambles using the derivative of the signal
     preamble_indices = rfid.derivative_burst_detection(iq_clean, sample_rate) 
+    
 
     #preamble_indices = rfid.detect_preamble_fm0(iq_clean, sample_rate, bit_rate=640e3)
     #preamble_indices = rfid.derivative_burst_detection(iq_clean, sample_rate, threshold_factor=threshold)
     
+    #frequenct correction. let's jump back 0.00006 seconds from each index, and then take 0.00004 of CW signal,
+    # we do this for each segment 
 
+
+    # freq_offset = rfid.estimate_frequency(iq_clean, sample_rate)
+    # print(f"Estimated frequency offset: {freq_offset:.1f} Hz")
+    # correction = np.exp(-1j * 2 * np.pi * freq_offset * np.arange(len(iq_clean)) / sample_rate)
+    # iq_clean = iq_clean * correction
 
     results = []
     for i, idx in enumerate(preamble_indices):
 
         preamble_duration = int(6/640e3 * sample_rate) # 6 bits at 640 kbps
 
+
         segment_start = idx + preamble_duration  # we want the rn16 response, which comes after the preamble
-        segment_end = segment_start + int(4e-6 * sample_rate)  # Analyze 4us segment after preamble
+        segment_end = segment_start + int(25e-6 * sample_rate)  # Analyze 25us segment after preamble
+
+        CW_duration = int(40e-6 * sample_rate)  # 40us of CW for frequency estimation
+        CW_start = idx - CW_duration
+        CW_segment = iq_clean[CW_start:CW_start + CW_duration]
 
         if segment_end > len(iq_clean):
             print(f"Warning: Segment {i} extends beyond capture")
@@ -299,13 +320,21 @@ def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
         segment = iq_clean[segment_start:segment_end]
 
         measurements = rfid.extract_measurements(segment)
+        extracted_frequency = rfid.estimate_local_frequency_offset(CW_segment, sample_rate)
+        corrected_segment = rfid.correct_frequency_offset(segment, extracted_frequency, sample_rate)
+        phase, local_offset = rfid.extract_phase_with_local_correction(corrected_segment, sample_rate)
+        #print(local_offset)
+
+        
 
         results.append({
             'burst_id': int(i),
             'preamble_index': int(idx),
             'offset_seconds': float(idx / sample_rate),
             'phase': measurements['phase'], 
-            'rssi': measurements['rssi'] 
+            'rssi': measurements['rssi'],
+            'frequency_corrected_phase': float(phase),
+            'frequency_correction_offset_hz': float(local_offset)
         })
     return results, preamble_indices
 

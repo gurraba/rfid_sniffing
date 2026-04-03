@@ -12,7 +12,7 @@ def remove_dc_carrier(iq_data):
     """Remove DC component (carrier at zero frequency)"""
     return iq_data - np.mean(iq_data)
 
-def bandpass_filter(iq_data, sample_rate, low_freq=10e3, high_freq=10e4):
+def bandpass_filter(iq_data, sample_rate, low_freq=10e3, high_freq=100e3):  #keep between 10kHz and 100kHz
     """Apply bandpass filter to keep backscatter band"""
     sos = signal.butter(6, [low_freq, high_freq], 'bandpass', 
                        fs=sample_rate, output='sos')
@@ -21,24 +21,67 @@ def bandpass_filter(iq_data, sample_rate, low_freq=10e3, high_freq=10e4):
 def preprocess_rfid_iq(iq_data, sample_rate):
     """Complete preprocessing pipeline"""
     iq_dc_removed = remove_dc_carrier(iq_data)
-    iq_filtered = bandpass_filter(iq_dc_removed, sample_rate)
+    #iq_filtered = bandpass_filter(iq_dc_removed, sample_rate)
+    #high pass filter to remove low frequency noise
+    sos = signal.butter(6, 10e3, 'highpass', fs=sample_rate, output='sos')
+    iq_filtered = signal.sosfilt(sos, iq_dc_removed)
     return iq_dc_removed
 
+
+
+
+"""
+Frequency correction 
+"""
 
 def estimate_frequency(iq_data, sample_rate):
     """Estimate dominant frequency using FFT"""
     n = len(iq_data)
     freqs = np.fft.fftfreq(n, d=1/sample_rate)
     spectrum = np.fft.fft(iq_data)
-    
-    # Only consider positive frequencies
-
+    print(f"Estimated frequency offset: {freqs[np.argmax(np.abs(spectrum))]:.1f} Hz")
     
     # Find peak in spectrum
     peak_idx = np.argmax(np.abs(spectrum))
-    return freqs[peak_idx]
+    frequency_offset = freqs[peak_idx]
+    
+    return frequency_offset
 
 
+def estimate_local_frequency_offset(iq_segment, sample_rate):
+    """
+    Estimate frequency offset from a short segment
+    Uses instantaneous frequency method
+    """
+    # Calculate instantaneous phase
+    phase = np.unwrap(np.angle(iq_segment))
+    
+    # Instantaneous frequency = derivative of phase
+    inst_freq = np.diff(phase) * sample_rate / (2 * np.pi)
+    
+    # Mean frequency offset
+    offset = np.mean(inst_freq)
+    
+    return offset
+
+
+def extract_phase_with_local_correction(iq_segment, sample_rate):
+    """
+    Extract phase after correcting for local frequency offset
+    """
+    # Estimate offset in this segment
+    offset = estimate_local_frequency_offset(iq_segment, sample_rate)
+    
+    # Correct this segment
+    t = np.arange(len(iq_segment)) / sample_rate
+    correction = np.exp(-1j * 2 * np.pi * offset * t)
+    iq_corrected = iq_segment * correction
+    
+    # Now extract phase from corrected segment
+    weights = np.abs(iq_corrected)
+    phase = np.angle(np.sum(iq_corrected * weights) / np.sum(weights))
+    
+    return phase, offset
 
 def correct_frequency_offset(iq_data, sample_rate, freq_offset):
     """Mix down to baseband to correct frequency offset"""
@@ -60,13 +103,36 @@ Backscatter burst detection
 """
 from scipy.ndimage import uniform_filter1d
 
+# 
+# def derivative_burst_detection(iq_data, sample_rate, percentile=95):
+#     """Detect bursts using percentile-based threshold"""
+#     derivative = derivative_of_magnitude(iq_data)
+    
+    
+#     burst_indices = np.where(derivative > 0.004)[0]
+    
+#     # Filter close bursts
+#     min_distance = int(sample_rate * 0.001)
+#     filtered_indices = []
+#     if len(burst_indices) > 0:
+#         filtered_indices.append(burst_indices[0])
+#         for i in range(1, len(burst_indices)):
+#             if burst_indices[i] - filtered_indices[-1] >= min_distance:
+#                 filtered_indices.append(burst_indices[i])
+    
+#     print(f"Found {len(filtered_indices)} bursts")
+#     return np.array(filtered_indices)
 
-def derivative_burst_detection(iq_data, sample_rate, percentile=95):
+
+def derivative_burst_detection(iq_data, sample_rate, percentile=99.98):
     """Detect bursts using percentile-based threshold"""
     derivative = derivative_of_magnitude(iq_data)
     
     
-    burst_indices = np.where(derivative > 0.004)[0]
+    #find 10 percent peaks
+    threshold = np.percentile(derivative, percentile)
+    burst_indices = np.where(derivative > threshold)[0]
+
     
     # Filter close bursts
     min_distance = int(sample_rate * 0.001)
@@ -79,6 +145,7 @@ def derivative_burst_detection(iq_data, sample_rate, percentile=95):
     
     print(f"Found {len(filtered_indices)} bursts")
     return np.array(filtered_indices)
+
 
 
 

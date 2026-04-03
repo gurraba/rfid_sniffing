@@ -49,7 +49,7 @@ namespace RfidReaderCapture
             // Antenna settings
             settings.Antennas.DisableAll();
             settings.Antennas.GetAntenna((ushort)antennaPort).IsEnabled = true;
-            settings.Antennas.GetAntenna((ushort)antennaPort).MaxTxPower= true;
+            settings.Antennas.GetAntenna((ushort)antennaPort).TxPowerInDbm = 30;
             settings.Antennas.GetAntenna((ushort)antennaPort).MaxRxSensitivity = true;
 
             // RF Mode
@@ -251,7 +251,8 @@ namespace RfidReaderCapture
         public static readonly Dictionary<string, string> Tags = new Dictionary<string, string>
     {
         { "A", "E2801191A5030066F8E4A83C" },
-        { "B", "E2801190A5030069454824D7"}
+        { "B", "E2801190A5030069454824D7"},
+        {"C", "E2801191A5030066F8E5529C"}
 
     };
 
@@ -391,9 +392,10 @@ class Program
 {
     static void Main(string[] args)
     {
+
         // Parse arguments
-        //string readerIp = "169.254.1.1";
-        string readerIp = "169.254.72.166";
+        string readerIp = "169.254.1.1";
+        //string readerIp = "169.254.72.166";
 
         try
         {
