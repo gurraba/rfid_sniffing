@@ -13,7 +13,10 @@ import RFID_signal_processing as rfid
 import matplotlib.pyplot as plt
 import pandas as pd
 
-DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
+#DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
+DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
+
+
 
 def plot_phase_rssi(results):
     """Plot phase and RSSI from detected preambles over time"""
@@ -285,11 +288,13 @@ def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
     iq_clean = rfid.preprocess_rfid_iq(samples, sample_rate)
 
     # let's find preambles using the derivative of the signal
-    preamble_indices = rfid.derivative_burst_detection(iq_clean, sample_rate) 
+    preamble_indices = rfid.derivative_burst_detection(np.diff(iq_clean), sample_rate)
+
+
     
 
     #preamble_indices = rfid.detect_preamble_fm0(iq_clean, sample_rate, bit_rate=640e3)
-    #preamble_indices = rfid.derivative_burst_detection(iq_clean, sample_rate, threshold_factor=threshold)
+    
     
     #frequenct correction. let's jump back 0.00006 seconds from each index, and then take 0.00004 of CW signal,
     # we do this for each segment 
@@ -306,12 +311,22 @@ def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
         preamble_duration = int(6/640e3 * sample_rate) # 6 bits at 640 kbps
 
 
-        segment_start = idx + preamble_duration  # we want the rn16 response, which comes after the preamble
+        segment_start = idx  # we want the rn16 response, which comes after the preamble
         segment_end = segment_start + int(25e-6 * sample_rate)  # Analyze 25us segment after preamble
 
-        CW_duration = int(40e-6 * sample_rate)  # 40us of CW for frequency estimation
-        CW_start = idx - CW_duration
+        CW_duration = int(30e-6 * sample_rate)  # 30us of CW for frequency estimation
+        CW_start = idx - CW_duration - int(3e-6 * sample_rate)  # Start 10us before preamble to ensure we capture CW
         CW_segment = iq_clean[CW_start:CW_start + CW_duration]
+
+        phase_unwrapped = rfid.custom_phase_unwrap(np.angle(CW_segment))
+        t = np.arange(len(CW_segment)) / sample_rate
+
+        slope, intercept = np.polyfit(t, phase_unwrapped, 1)
+
+        rn16_time_offset = (idx - CW_start) / sample_rate
+        expected_phase_offset = (slope * rn16_time_offset + intercept) 
+
+
 
         if segment_end > len(iq_clean):
             print(f"Warning: Segment {i} extends beyond capture")
@@ -320,9 +335,13 @@ def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
         segment = iq_clean[segment_start:segment_end]
 
         measurements = rfid.extract_measurements(segment)
-        extracted_frequency = rfid.estimate_local_frequency_offset(CW_segment, sample_rate)
-        corrected_segment = rfid.correct_frequency_offset(segment, extracted_frequency, sample_rate)
-        phase, local_offset = rfid.extract_phase_with_local_correction(corrected_segment, sample_rate)
+        # extracted_frequency = rfid.estimate_local_frequency_offset(CW_segment, sample_rate)
+        # corrected_segment = rfid.correct_frequency_offset(segment, extracted_frequency, sample_rate)
+        # phase, local_offset = rfid.extract_phase_with_local_correction(corrected_segment, sample_rate)
+
+        #phase corection using the CW segment
+        phase = measurements['phase'] - expected_phase_offset
+        local_offset = slope * rn16_time_offset + intercept - measurements['phase']
         #print(local_offset)
 
         
