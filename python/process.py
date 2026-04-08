@@ -13,12 +13,12 @@ import RFID_signal_processing as rfid
 import matplotlib.pyplot as plt
 import pandas as pd
 
-#DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
-DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
+DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
+#DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
 
 
 
-def plot_phase_rssi(results):
+def plot_phase_rssi(results, reader_df=None):
     """Plot phase and RSSI from detected preambles over time"""
     
     if len(results) == 0:
@@ -66,7 +66,15 @@ def plot_phase_rssi(results):
     axes[3].set_ylabel('Phase  (rad)', fontsize=12)
     axes[3].set_title('Frequency-Corrected Phase', fontsize=14, fontweight='bold')
     axes[3].grid(True, alpha=0.3)
-    
+
+    # #also plot phases from reader CSV if available in the third plot
+    # if reader_df is not None and len(reader_df) > 0:
+    #     reader_times = reader_df["Timestamp"].values - reader_df["Timestamp"].values[0]  # Convert to relative time
+    #     reader_phases = reader_df["Phase"].values
+        
+    #     axes[3].plot(reader_times, reader_phases, 'kx', label='Reader Phase (CSV)')
+    #     axes[3].legend()
+
     plt.tight_layout()
     plt.show()
     
@@ -318,7 +326,7 @@ def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
         CW_start = idx - CW_duration - int(3e-6 * sample_rate)  # Start 10us before preamble to ensure we capture CW
         CW_segment = iq_clean[CW_start:CW_start + CW_duration]
 
-        phase_unwrapped = rfid.custom_phase_unwrap(np.angle(CW_segment))
+        phase_unwrapped = np.unwrap(np.angle(CW_segment))
         t = np.arange(len(CW_segment)) / sample_rate
 
         slope, intercept = np.polyfit(t, phase_unwrapped, 1)
@@ -500,7 +508,7 @@ def main():
     
     # Plot phase/RSSI
     if args.plot_phase:
-        plot_phase_rssi(results)
+        plot_phase_rssi(results, reader_df if len(reader_df) > 0 else None)
 
 
 if __name__ == "__main__":

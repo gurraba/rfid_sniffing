@@ -204,7 +204,7 @@ def detect_preamble_fm0(iq_data, sample_rate, bit_rate=640e3):
                          distance=int(sample_rate * 0.0001))  # Min 10ms apart
     print(f"Correlation peaks: {len(peaks)} found")
     return peaks  # Indices where preambles detected
-
+    
 """
 Phase and RSSI extraction
 """

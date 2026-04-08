@@ -360,6 +360,12 @@ namespace RfidReaderCapture
             SaveResults("any_tags", results, "ALL", startTime, duration);
         }
 
+            public void readDuringPeriod(string epc, double durationSeconds)
+            {
+            var startTime = DateTime.UtcNow;
+            var results = reader.CaptureTag(epc, int .MaxValue, durationSeconds);
+
+            }
 
         public static void SaveResults(string prefix, List<TagRead> results, string targetEPC, DateTime starttime, double duration)
         {
@@ -424,7 +430,8 @@ class Program
                 Console.WriteLine("\n1. Quick test (1 tag, 5 reads)");
                 Console.WriteLine("2. Read tags in sequence");
                 Console.WriteLine("3. Read any tags found");
-                Console.WriteLine("4. Exit");
+                Console.WriteLine("4, Read during period");
+                Console.WriteLine("5. Exit");
 
                 Console.WriteLine("\nChoice: ");
                 var choice = Console.ReadLine();
@@ -479,7 +486,26 @@ class Program
 
                     experients.ReadAnyTags(input);
                 }
-                else if (choice == "4")
+                else if(choice == "4")
+                {
+                    Console.WriteLine("Which tag? (e.g ABC): ");
+                    var key = Console.ReadLine().ToUpper();
+                    string epc = "ALL";
+                    if (TagRegistry.Tags.ContainsKey(key))
+                    {
+                        epc = TagRegistry.Tags[key];
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid Tag selection");
+                    }
+
+                    Console.WriteLine("For how many seconds? [5] : ");
+                    var readsStr = Console.ReadLine();
+                    int duration = string.IsNullOrEmpty(readsStr) ? 5 : int.Parse(readsStr);
+                    experients.readDuringPeriod(epc, duration);
+                }
+                else if (choice == "5")
                 {
                     Console.WriteLine("Disconnecting reader");
                     reader.Disconnect();
