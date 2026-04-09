@@ -11,14 +11,14 @@ import json
 import argparse
 import RFID_signal_processing as rfid
 import matplotlib.pyplot as plt
-import pandas as pd
-
-DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
-#DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
 
 
+#DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
+DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
 
-def plot_phase_rssi(results, reader_df=None):
+
+
+def plot_phase_rssi(results, reader_events=None):
     """Plot phase and RSSI from detected preambles over time"""
     
     if len(results) == 0:
@@ -68,7 +68,7 @@ def plot_phase_rssi(results, reader_df=None):
     axes[3].grid(True, alpha=0.3)
 
     # #also plot phases from reader CSV if available in the third plot
-    # if reader_df is not None and len(reader_df) > 0:
+    # if reader_events is not None and len(reader_events) > 0:
     #     reader_times = reader_df["Timestamp"].values - reader_df["Timestamp"].values[0]  # Convert to relative time
     #     reader_phases = reader_df["Phase"].values
         
@@ -91,7 +91,7 @@ def plot_phase_rssi(results, reader_df=None):
 
 
 def plot_capture(samples, sample_rate, center_freq, output_file=None, 
-                 event_lines=None, reader_df=None):
+                 event_lines=None, reader_events=None):
     """
     Plot I/Q capture data
     
@@ -154,8 +154,8 @@ def plot_capture(samples, sample_rate, center_freq, output_file=None,
         axes[0].legend(loc='upper right')
     
     # Mark when the reader says that a tag was read (from CSV)
-    if reader_df is not None and len(reader_df) > 0:
-        for i, (_, event) in enumerate(reader_df.iterrows()):
+    if len(reader_events) > 0:
+        for i, event in enumerate(reader_events):
             axes[0].axvline(event['offset'], color='blue', linestyle=':', 
                            alpha=0.7, linewidth=2,
                            label='Reader timestamp' if i == 0 else '')
@@ -250,39 +250,24 @@ def load_reader_csv(prefix):
     if not os.path.exists(csv_file):
         print(f"Warning: Reader CSV file not found: {csv_file}")
         return [], {}
-    events = []
+
     with open(csv_file, 'r') as f:
         reader = csv.DictReader(f)
+        events = []
         for row in reader:
-            events.append({
-                'timestamp': float(row['Timestamp']),
-                'epc': row['EPC'],
+           events.append({
+               'timestamp': float(row['Timestamp']),
                 'phase': float(row['Phase']),
-                'rssi': float(row['RSSI'])
-            })
+                'rssi': float(row['RSSI']),
+                'epc': row['EPC']
+           })
     
     with open(metadata_file, 'r') as f:
         metadata = json.load(f)
+
     return events, metadata
 
-def load_reader_csv_as_df(prefix):
-    """Load reader CSV events using pandas"""
-    csv_file = f"{DATA_DIR}/{prefix}_reader.csv"
-    metadata_file = f"{DATA_DIR}/{prefix}_reader_meta.json"
 
-    # Check if files exist
-    import os
-    if not os.path.exists(csv_file):
-        print(f"Warning: Reader CSV file not found: {csv_file}")
-        return [], {}
-    
-    df = pd.read_csv(csv_file)
-    events = df
-    
-    with open(metadata_file, 'r') as f:
-        metadata = json.load(f)
-    
-    return events, metadata
 
 def process_samples(samples, sample_rate, threshold=3, reader_timing=False):
     """
@@ -456,11 +441,13 @@ def main():
     samples, metadata = load_capture(args.input)
     sdr_start_time = metadata['start_time']
     
-    reader_df, reader_metadata = load_reader_csv_as_df(args.input)
+    
+    reader_events, reader_metadata = load_reader_csv(args.input)
     
     # Add timing offset to reader events
-    if len(reader_df) > 0:
-        reader_df["offset"] = reader_df["Timestamp"] - sdr_start_time
+    if len(reader_events) > 0:
+        for event in reader_events:
+            event["offset"] = event["timestamp"] - sdr_start_time
     
     # Process
     results, preamble_indices = process_samples(samples, metadata['sample_rate'], 
@@ -504,11 +491,11 @@ def main():
                     metadata['sample_rate'],
                     metadata['center_freq'],
                     event_lines=event_lines,
-                    reader_df=reader_df if len(reader_df) > 0 else None)
-    
+                    reader_events=reader_events if len(reader_events) > 0 else None)
+
     # Plot phase/RSSI
     if args.plot_phase:
-        plot_phase_rssi(results, reader_df if len(reader_df) > 0 else None)
+        plot_phase_rssi(results, reader_events if len(reader_events) > 0 else None)
 
 
 if __name__ == "__main__":
