@@ -49,7 +49,7 @@ namespace RfidReaderCapture
             // Antenna settings
             settings.Antennas.DisableAll();
             settings.Antennas.GetAntenna((ushort)antennaPort).IsEnabled = true;
-            settings.Antennas.GetAntenna((ushort)antennaPort).TxPowerInDbm = 30;
+            settings.Antennas.GetAntenna((ushort)antennaPort).MaxTxPower= true;
             settings.Antennas.GetAntenna((ushort)antennaPort).MaxRxSensitivity = true;
 
             // RF Mode
@@ -146,6 +146,27 @@ namespace RfidReaderCapture
             return reads[0];
         }
 
+        public List<TagRead> CaptureDuration(string epc, double durationSeconds)
+        {
+            capturedTags.Clear();
+            isCapturing = true;
+            targetReadCount = int.MaxValue; // never stop early on count
+            currentReadCount = 0;
+
+            SetTagFilter(epc);
+            reader.TagsReported += OnTagsReported;
+            reader.Start();
+
+            System.Threading.Thread.Sleep((int)(durationSeconds * 1000));
+
+            reader.Stop();
+            reader.TagsReported -= OnTagsReported;
+            isCapturing = false;
+
+            Console.WriteLine($"[Reader] Captured {capturedTags.Count} reads in {durationSeconds}s");
+            return new List<TagRead>(capturedTags);
+        }
+
 
         private void OnTagsReported(ImpinjReader sender, TagReport report)
         {
@@ -172,6 +193,8 @@ namespace RfidReaderCapture
                 currentReadCount++;
             }
         }
+
+
 
         public void Disconnect()
         {
@@ -250,9 +273,19 @@ namespace RfidReaderCapture
     {
         public static readonly Dictionary<string, string> Tags = new Dictionary<string, string>
     {
-        { "A", "E2801191A5030066F8E4A83C" },
-        { "B", "E2801190A5030069454824D7"},
-        {"C", "E2801191A5030066F8E5529C"}
+            //{ "A", "E2801191A5030066F8E4A83C" },
+            //{ "B", "E2801190A5030069454824D7"},
+            //{"C", "E2801191A5030066F8E5529C"},
+            //{"M", "E2801190A50300650000" },
+            //{"N", "E2801191A5030066F8E5A3CC"}
+
+
+            {"A", "E2801190A503006500001111" },
+            {"B", "E2801190A5030063658F657D" },
+            {"C", "E2801190A5030063658F658D" },
+            {"D", "E2801190A50300650000"},
+            {"E", "E2801190A503006500002222"} 
+
 
     };
 
@@ -362,8 +395,11 @@ namespace RfidReaderCapture
 
             public void readDuringPeriod(string epc, double durationSeconds)
             {
+            Console.WriteLine($"\nReading tag {TagRegistry.Tags.GetValueOrDefault(epc)} for {durationSeconds}s...\n");
             var startTime = DateTime.UtcNow;
-            var results = reader.CaptureTag(epc, int .MaxValue, durationSeconds);
+            var results = reader.CaptureDuration(epc, durationSeconds);
+            SaveResults("continous", results, epc, startTime, durationSeconds);
+
 
             }
 
@@ -376,8 +412,8 @@ namespace RfidReaderCapture
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var filename = $"{prefix}_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
             filename = prefix;
-            var csvpath = $"C:/Users/gusta/Documents/programmering/RFID_project/data/captures/{filename}.csv";
-            var metapath = $"C:/Users/gusta/Documents/programmering/RFID_project/data/captures/{filename}_meta.json";
+            var csvpath = $"C:/Users/gusta/Documents/programmering/RFID_project/data/captures/{filename}_reader.csv";
+            var metapath = $"C:/Users/gusta/Documents/programmering/RFID_project/data/captures/{filename}_reader_meta.json";
 
             FileUtils.SaveToCsv(csvpath, results);
             FileUtils.SaveMetadata(metapath, targetEPC, duration, starttime);
@@ -401,27 +437,60 @@ class Program
 
         // Parse arguments
         string readerIp = "169.254.1.1";
-        //string readerIp = "169.254.72.166";
+        string readerIp2 = "169.254.72.166";
 
         try
         {
 
 
+            // Connect and configure
+
+            // List of potential IP addresses to try
+            string[] readerIps = { "169.254.72.166", "169.254.1.1" };
+            ReaderCapture reader = null;
+            ExperimentRunner experients = null;
+            bool isConnected = false;
+
             Console.WriteLine("=================================================");
             Console.WriteLine("RFID Reader Capture Program");
-            Console.WriteLine("=====================CONNECTING====================\n");
 
-            // Connect and configure
-         
-            var reader = new ReaderCapture(readerIp);
-            var experients = new ExperimentRunner(reader, readerIp);
-            reader.Configure(antennaPort: 1, session: 0);
-            
+            foreach (string ip in readerIps)
+            {
+                try
+                {
+                    Console.WriteLine($"\n===================== CONNECTING TO {ip} ====================");
+
+                    // Attempt to initialize
+                    var tempReader = new ReaderCapture(ip);
+
+                    // Some libraries don't throw until you actually try to Configure or Connect
+                    tempReader.Configure(antennaPort: 1, session: 0);
+
+                    // If we reach this line, the connection was successful
+                    reader = tempReader;
+                    experients = new ExperimentRunner(reader, ip);
+                    isConnected = true;
+
+                    Console.WriteLine($"Successfully connected to {ip}!");
+                    break; // Exit the loop since we found a working IP
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to connect to {ip}: {ex.Message}");
+                    // Loop continues to the next IP address
+                }
+            }
+
+            if (!isConnected)
+            {
+                Console.WriteLine("\n[ERROR] Could not connect to any of the provided IP addresses.");
+                return; // Or handle the failure appropriately
+            }
 
 
 
-                
-            
+
+
             while (true)
             {
                 Console.WriteLine("\n" + new string('=', 50));
@@ -505,6 +574,7 @@ class Program
                     int duration = string.IsNullOrEmpty(readsStr) ? 5 : int.Parse(readsStr);
                     experients.readDuringPeriod(epc, duration);
                 }
+
                 else if (choice == "5")
                 {
                     Console.WriteLine("Disconnecting reader");
