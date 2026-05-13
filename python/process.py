@@ -23,7 +23,7 @@ DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
 
 
 #store all the tags "ideal" epc numbers in a dict for easy lookup when decoding.
-IDEAL_EPCs = ["532FFC75FFB9BD6BF3FE6BFFFF77771A48", "532FFC75FFB9BD6BF3FE6BFFFFBBBA4190"]
+IDEAL_EPCs = ["532FFC75FFB9BD6BF3FE6BFFFF77771A48", "532FFC75FFB9BD6BF3FE6BFFFFBBBA4190", "533FFC75FFB9B96BF3FE641C69734E9BB8" ]
 
 @dataclass 
 class RFIDBurst:
@@ -515,13 +515,18 @@ def plot_phase_rssi(processor, reader_events=None):
     
 def plot_phase_rssi_per_tag(processor, reader_events=None):
     
-    tag_ids = set(b.tag_id for b in processor.capture.bursts if b.burst_type == 'rn16' and b.tag_id >= 0)
+    tag_ids = sorted(set(b.tag_id for b in processor.capture.bursts if b.burst_type == 'rn16' and b.phase != 0.0 and b.tag_id != -1))
 
-    fig, axes = plt.subplots(2, 1, figsize=(14, 10))
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10))
 
     colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
 
-    for i, tag_id in enumerate(sorted(tag_ids)):
+    def tag_label(tag_id):
+        if 0 <= tag_id < len(IDEAL_EPCs):
+            return IDEAL_EPCs[tag_id].replace(':', '')[-4:]
+        return str(tag_id)
+
+    for i, tag_id in enumerate(tag_ids):
         color = colors[i % len(colors)]
         bursts = [b for b in processor.capture.bursts 
                   if b.burst_type == 'rn16' and b.phase != 0.0 and b.tag_id == tag_id]
@@ -532,8 +537,9 @@ def plot_phase_rssi_per_tag(processor, reader_events=None):
         corrected_phases = np.array([b.frequency_corrected_phase for b in bursts])
         corrected_phases_unwrapped = rfid.custom_phase_unwrap(corrected_phases)
 
-        axes[0].plot(times, rssis, marker='o', linestyle='-', alpha=0.7, markersize=4, color=color, label=f'Tag {tag_id}')
-        axes[1].plot(times, corrected_phases_unwrapped, marker='o', linestyle='-', alpha=0.7, markersize=4, color=color, label=f'Tag {tag_id}')
+        label = f'Tag {tag_label(tag_id)}'
+        axes[0].plot(times, rssis, marker='o', linestyle='-', alpha=0.7, markersize=4, color=color, label=label)
+        axes[1].plot(times, corrected_phases_unwrapped, marker='o', linestyle='-', alpha=0.7, markersize=4, color=color, label=label)
 
     axes[0].set_ylabel('RSSI (dB)')
     axes[0].set_title('RSSI per Tag', fontweight='bold')
@@ -546,6 +552,33 @@ def plot_phase_rssi_per_tag(processor, reader_events=None):
     axes[1].grid(True, alpha=0.3)
     axes[1].legend()
 
+    for tag_id in sorted(tag_ids):
+        color = colors[tag_id % len(colors)]
+        tag_bursts = [b for b in processor.capture.bursts if b.tag_id == tag_id]
+        
+        if not tag_bursts:
+            continue
+
+        peak_times = []
+        peak_values = []
+
+        for burst in tag_bursts:
+            start = burst.start_index
+            end = burst.end_index
+            segment = processor.capture.second_derivative[start:end]
+            if len(segment) == 0:
+                continue
+            peak_idx = np.argmax(segment)
+            peak_times.append((start + peak_idx) / sample_rate)
+            peak_values.append(segment[peak_idx])
+
+        #filter away too low values
+
+        
+
+
+        axes[2].plot(peak_times, peak_values, 'o', markersize=3, 
+                    color=color, label=f'Tag {tag_id}')
     plt.tight_layout()
     plt.show()
 
@@ -561,19 +594,16 @@ def plot_capture(signal_obj, output_file=None, event_lines=None, reader_events=N
     
     fig, axes = plt.subplots(3, 1, figsize=(14, 10))
 
-    non_zero_indices = np.where(np.abs(samples) > 1e-6)[0]
-    if len(non_zero_indices) > 0:
-        start_idx = max(0, non_zero_indices[0] - int(0.01 * sample_rate))
-        end_idx = min(len(samples), non_zero_indices[-1] + int(0.01 * sample_rate))
-        samples = samples[start_idx:end_idx]
-        t = t[start_idx:end_idx]
+    # non_zero_indices = np.where(np.abs(samples) > 1e-6)[0]
+    # if len(non_zero_indices) > 0:
+    #     start_idx = max(0, non_zero_indices[0] - int(0.01 * sample_rate))
+    #     end_idx = min(len(samples), non_zero_indices[-1] + int(0.01 * sample_rate))
+    #     samples = samples[start_idx:end_idx]
+    #     t = t[start_idx:end_idx]
 
-    nonzero = np.where(np.abs(samples) > 0.001)[0]
-    if len(nonzero) == 0:
-        print("Warning: No significant signal found")
-        return
+    t = np.arange(len(samples)) / sample_rate
 
-    axes[0].plot(t[nonzero[0]:nonzero[-1]], np.abs(samples[nonzero[0]:nonzero[-1]]), linewidth=0.5, color='green')
+    axes[0].plot(t, np.abs(samples), linewidth=0.5, color='green')
     axes[0].set_title('I/Q Magnitude', fontweight='bold')
     axes[0].set_xlabel('Time (s)')
     axes[0].set_ylabel('Magnitude')
@@ -652,7 +682,7 @@ def plot_reader(reader_session):
         rssis = np.array([e.rssi for e in events])
 
         phases = rfid.custom_phase_unwrap(phases)
-        
+
         
         axes[0].plot(times, phases, 'o-', alpha=0.7, markersize=4, color=color, label=f'Tag {epc}')
         axes[1].plot(times, rssis, 'o-', alpha=0.7, markersize=4, color=color, label=f'Tag {epc}')

@@ -32,7 +32,8 @@ namespace RfidReaderCapture
 
             Console.WriteLine($"[Reader] Connected to {hostname}");
         }
-
+        
+        
         public void Configure(int antennaPort = 1, int session = 0)
         {
             Console.WriteLine("[Reader] Configuring...");
@@ -49,7 +50,8 @@ namespace RfidReaderCapture
             // Antenna settings
             settings.Antennas.DisableAll();
             settings.Antennas.GetAntenna((ushort)antennaPort).IsEnabled = true;
-            settings.Antennas.GetAntenna((ushort)antennaPort).MaxTxPower= true;
+            settings.Antennas.GetAntenna((ushort)antennaPort).MaxTxPower = true
+                ;
             settings.Antennas.GetAntenna((ushort)antennaPort).MaxRxSensitivity = true;
 
             // RF Mode
@@ -135,15 +137,32 @@ namespace RfidReaderCapture
         }
         public TagRead ReadTagOnce(string epc, double timeoutSeconds = 2.0)
         {
-            // Don't call SetTagFilter here - assume it's already set
-            var reads = CaptureTag(epc, 1, timeoutSeconds);
+            capturedTags.Clear();
+            isCapturing = true;
+            targetReadCount = 1;
+            currentReadCount = 0;
 
-            if (reads.Count == 0)
+            // Stop just long enough to apply filter, then restart
+            reader.Stop();
+            SetTagFilter(epc);
+            reader.TagsReported -= OnTagsReported; // avoid double subscription
+            reader.TagsReported += OnTagsReported;
+            reader.Start();
+
+            var startTime = DateTime.UtcNow;
+            while (currentReadCount < 1 && DateTime.UtcNow - startTime < TimeSpan.FromSeconds(timeoutSeconds))
             {
-                throw new Exception($"Tag not detected within {timeoutSeconds}s");
+                System.Threading.Thread.Sleep(10);
             }
 
-            return reads[0];
+            reader.Stop();
+            reader.TagsReported -= OnTagsReported;
+            isCapturing = false;
+
+            if (capturedTags.Count == 0)
+                throw new Exception($"Tag {epc} not detected within {timeoutSeconds}s");
+
+            return capturedTags[0];
         }
 
         public List<TagRead> CaptureDuration(string epc, double durationSeconds)
@@ -284,7 +303,8 @@ namespace RfidReaderCapture
             {"B", "E2801190A5030063658F657D" },
             {"C", "E2801190A5030063658F658D" },
             {"D", "E2801190A50300650000"},
-            {"E", "E2801190A503006500002222"} 
+            {"E", "E2801190A503006500002222"},
+            {"S", "E2801191A5030066F8E5"}
 
 
     };
@@ -345,19 +365,15 @@ namespace RfidReaderCapture
             var results = new List<TagRead>();
             var starttime = DateTime.Now;
 
-            
 
-            foreach (var epc in epcs)
+            for (int i = 0; i < readsPerTag; i++)
             {
-
-                Console.WriteLine($"Reading tag {epc}...");
-
-                for (int i = 0; i < readsPerTag; i++)
+                foreach (var epc in epcs)
                 {
+                    Console.WriteLine($"Reading tag {epc}...");
                     var read = reader.ReadTagOnce(epc);
                     results.Add(read);
                     Console.WriteLine($"  {i + 1}/{readsPerTag}: Phase={read.Phase:F3}, Time={read.Timestamp:HH:mm:ss.fff}");
-                    //System.Threading.Thread.Sleep(100);
                 }
             }
 

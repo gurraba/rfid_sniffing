@@ -140,7 +140,7 @@ def derivative_burst_detection(iq_data, sample_rate, percentile=99.98):
     
     #find 10 percent peaks
     threshold = np.percentile(iq_data, percentile)
-    burst_indices = np.where(iq_data > 0.01)[0] #Använd 0.02 för cont_tagb_m
+    burst_indices = np.where(iq_data > 0.006)[0] #Använd 0.02 för cont_tagb_m
     
     #burst_indices = np.where(burst_indices > threshold)[0]
 
