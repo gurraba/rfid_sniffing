@@ -140,7 +140,7 @@ def derivative_burst_detection(iq_data, sample_rate, percentile=99.98):
     
     #find 10 percent peaks
     threshold = np.percentile(iq_data, percentile)
-    burst_indices = np.where(iq_data > 0.006)[0] #Använd 0.02 för cont_tagb_m
+    burst_indices = np.where(iq_data > 0.015)[0] #Använd 0.02 för cont_tagb_m
     
     #burst_indices = np.where(burst_indices > threshold)[0]
 
@@ -370,7 +370,7 @@ def find_burst_boundaries(derivative, peak_idx, sample_rate, bit_rate=640e3,
 
         return last_valid
 
-    start_idx = walk(peak_idx, step=-1)
+    start_idx = walk(peak_idx, step=-1) 
     end_idx = walk(peak_idx, step=+1)
 
     if end_idx <= start_idx:

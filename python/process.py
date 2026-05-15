@@ -232,9 +232,10 @@ class RFIDProcessor:
 
     def extract_measurements(self):
         for burst in self.capture.bursts:
-            # if burst.burst_type != 'epc':
-            #     continue
+            if burst.burst_type != 'rn16':
+                continue
             
+
             idx = burst.start_index
             #if we have boundaries, we should have those as the start and end.
  
@@ -314,7 +315,6 @@ class RFIDProcessor:
             hex_string += f"{val:X}"
         return hex_string
 
-    
     def decode_epcs(self, known_epcs_hex: list[str]):
         
         """Returns list of (rn16_burst, epc_burst, tag_id) for matched bursts."""
@@ -353,7 +353,6 @@ class RFIDProcessor:
         
         return matches
 
-    
     def decode_epcs_without_shifting(self, known_epcs_hex: list[str]):
         matches = []
         all_decoded = []
@@ -406,9 +405,6 @@ class RFIDProcessor:
         print(f"Matched {len(matches)}/{len(all_decoded)} bursts")
 
         return matches
-
-    
-    
     
     def assign_tag_ids(self, matches):
         for rn16, epc_burst, tag_id in matches:
@@ -459,7 +455,7 @@ class RFIDProcessor:
 
 def plot_phase_rssi(processor, reader_events=None):
     bursts = [b for b in processor.capture.bursts 
-              if b.burst_type == 'rn16']
+              if b.burst_type == 'epc']
     
     if len(bursts) == 0:
         print("No measured RN16 bursts to plot")
