@@ -1,0 +1,222 @@
+experiment.
+
+Tagb_test
+Tag B 270cm från läsare
+antenn 25cm från tag. 
+
+tagb_test2
+Tab B 220cm från läsare
+Antenn 25 cm från tag. extremt svag svar. 
+
+tagb_test3
+Tag B 320 cm från läsare
+antenn 25 cm från tag.
+
+tagb_test4
+Tag B 320 cm från läsare
+antenn 100 cm från tag.
+
+
+tagb_test5
+Tag B 320 cm från läsare
+antenn 10 cm från tag.
+Väldigt bra
+
+tagb_test6
+Tag B 320 cm från läsare
+antenn 20 cm från tag.
+dåligt utslag
+
+tagb_test7
+tag b med metallsidan bakåt
+320cm från läsare. 20cm antenn
+
+
+
+
+taga_test1
+tag a 320 cm från läsare
+antenn 20cm från tag
+
+
+taga_test2
+tag a 320 cm från läsare
+antenn 50cm från tag
+
+taga_test3
+tag a 220 cm från läsare
+antenn 15cm från tag
+
+taga_test4
+Amplitud 2 cm, 3 sek
+tag a 220 cm från läsare
+antenn 15cm från tag
+
+taga_test5
+Amplitud 2 cm, 3 sek
+tag a 2200 cm från läsare
+antenn 8cm från tag
+
+taga_test6
+död tag precis bredvid
+Amplitud 2 cm, 3 sek
+tag a 2200 cm från läsare
+antenn 8cm från tag
+
+
+taga_test7
+Amplitud 2 cm, 3 sek igen
+tag a 2200 cm från läsare
+antenn 8cm från tag
+
+taga_test8
+Amplitud 1 cm, 1 sek 
+tag a 2200 cm från läsare
+antenn 8cm från tag
+
+taga_test9
+Amplitud 1.5 cm, 2 sek 
+tag a 2200 cm från läsare
+antenn 8cm från tag    MED oscillationr
+
+
+taga_test10
+Amplitud 1.5 cm, 2 sek 
+tag a 2200 cm från läsare
+antenn 8cm från tag    
+
+taga_test11
+Amplitud 1.5 cm, 2 sek 
+tag a 2200 cm från läsare
+antenn 8cm från tag    
+
+
+taga_test11
+Amplitud 1.5 cm, 2 sek 
+tag a 2200 cm från läsare
+antenn 8cm från tag    
+
+
+taga_test12
+Amplitud 2 cm, 3 sek 
+tag a 2200 cm från läsare
+antenn 8cm från tag    
+
+taga_test13
+Amplitud 1.5 cm, 2 sek 
+tag a 2200 cm från läsare    bra!
+antenn 8cm från tag    
+
+taga_test14
+Amplitud 1 cm, 1 sek 
+tag a 2200 cm från läsare    med störning
+antenn 8cm från tag    
+
+taga_test15
+Amplitud 1 cm, 1 sek 
+tag a 2200 cm från läsare    
+antenn 8cm från tag       -bra!
+
+
+taga_test16
+Amplitud 1 cm, 1 sek 
+tag a 2200 cm från läsare    
+antenn 20cm från tag        inte via fas, men via andraderivatan
+
+
+taga_test17
+Amplitud 1.5 cm, 2 sek 
+tag a 2200 cm från läsare    
+antenn 20cm från tag        
+
+
+
+taga_test18
+Amplitud 2 cm, 3 sek 
+tag a 2200 cm från läsare    
+antenn 20cm från tag        
+
+
+taga_test18
+Amplitud 2 cm, 3 sek 
+tag a 2200 cm från läsare    
+antenn 8cm från tag        
+
+
+tagc_test1
+Amplitud 2 cm, 3 sek 
+tag a 2200 cm från läsare    
+antenn 15cm från tag         OKEJ!
+
+tagc_test2
+Amplitud 2 cm, 3 sek 
+tag a 370 cm från läsare    
+antenn 12cm från tag         OKEJ!
+
+
+
+tagc_test3          
+Amplitud 2 cm, 3 sek 
+tag a 220 cm från läsare    
+antenn 10cm från tag         
+
+tagc_test4    
+Amplitud 2 cm, 3 sek 
+tag a 220 cm från läsare    
+antenn 20cm från tag         
+
+tagc_test5
+Amplitud 2 cm, 3 sek 
+tag a 220 cm från läsare    
+antenn 10cm från tag          NICE!
+
+
+tagc_test6
+Amplitud 2 cm, 3 sek       TVÅ TAGGAR
+tag a 220 cm från läsare    
+antenn 10cm från tag          NICE!
+
+
+tagc_test7
+Amplitud 2 cm, 3 sek       TVÅ TAGGAR
+tag a 220 cm från läsare    
+antenn 10cm från tag          med andra taggen för långt ifrån
+
+
+
+tagc_test8
+Amplitud 2 cm, 3 sek       TVÅ TAGGAR
+tag a 220 cm från läsare    
+antenn 10cm från tag          med andra taggen för långt ifrån
+
+tagc_test9
+Amplitud 2 cm, 3 sek       TVÅ TAGGAR
+tag a 220 cm från läsare    
+antenn 15cm från tag          lite längre ifrån. funkar
+
+tagc_test10
+Amplitud 3 cm, 4 sek       TVÅ TAGGAR
+tag a 220 cm från läsare    
+antenn 15cm från tag          lite längre ifrån. funkar
+
+
+tagc_test11
+Amplitud 2 cm, 3 sek       TVÅ TAGGAR SOM BÅDA RÖR SIG VIKTIG!!
+tag a 320 cm från läsare    
+antenn 8cm från tag          
+
+
+tagc_test12
+Amplitud 2 cm, 3 sek       en tag rör sig en stilla, båda visar skillnad i fas
+tag a 320 cm från läsare    
+antenn 8cm från tag           
+
+
+tagc_test12
+Amplitud 2 cm, 3 sek       en tag rör sig en stilla, båda visar skillnad i fas
+tag a 320 cm från läsare    
+antenn 8cm från tag           
+
+
+
+cont_tag_b. 
