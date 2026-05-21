@@ -133,14 +133,14 @@ from scipy.ndimage import uniform_filter1d
 #     return np.array(filtered_indices)
 
 
-def derivative_burst_detection(iq_data, sample_rate, percentile=99.98):
+def derivative_burst_detection(iq_data, sample_rate, percentile=99.98, threshold = 0.04):
     """Detect bursts using percentile-based threshold"""
     #derivative = np.diff(iq_data)
     
     
     #find 10 percent peaks
-    threshold = np.percentile(iq_data, percentile)
-    burst_indices = np.where(iq_data > 0.015)[0] #Använd 0.02 för cont_tagb_m
+    #threshold = np.percentile(iq_data, percentile)
+    burst_indices = np.where(iq_data > threshold)[0] #Använd 0.02 för cont_tagb_m
     
     #burst_indices = np.where(burst_indices > threshold)[0]
 
@@ -450,11 +450,13 @@ def decode_fm0_burst(samples, sample_rate, bit_rate=640e3):
     fft = np.fft.fft(envelope)
     freqs = np.fft.fftfreq(len(envelope), d=1/sample_rate)
     fft[np.abs(freqs) > 100e3] = 0
-    normalized = np.fft.ifft(fft)
+    normalized = np.real(np.fft.ifft(fft))
 
     normalized = envelope - normalized
 
-    sign = np.sign(normalized)
+    
+
+    sign = np.sign(normalized.astype(float))
     transitions = np.where(np.diff(sign) != 0)[0]
 
     if len(transitions) < 4:

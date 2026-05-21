@@ -15,11 +15,17 @@ import numpy as np
 import json
 import argparse
 import RFID_signal_processing as rfid
+import matplotlib
 import matplotlib.pyplot as plt
+font = {'family' : 'serif',
+        'weight' : 'normal',
+        'size'   : 17}
+
+matplotlib.rc('font', **font)
 
 
 DATA_DIR = "C:/Users/gusta/Documents/programmering/RFID_project/data/captures/"
-#DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
+DATA_DIR = "C:/Users/gustav/Documents/programmering/rfid_sniffing/data/captures/"
 
 
 #store all the tags "ideal" epc numbers in a dict for easy lookup when decoding.
@@ -135,7 +141,7 @@ class RFIDSignal:
     def second_derivative(self):
         if self._second_derivative is None:
             #smoothed_envelope = rfid.moving_average_filter(self.samples, self.sample_rate, window=1e-5)
-            self._second_derivative = np.abs(np.diff(self.samples, 2))
+            self._second_derivative = np.abs(np.diff(self.samples, 2)).astype(float)
 
         return self._second_derivative
     
@@ -183,12 +189,16 @@ class RFIDProcessor:
         step_size = window_size
         self.capture.bursts = []
         samples_per_bit = int(self.capture.sample_rate / bit_rate)
+        lower_threshold = 2 * np.max(self.capture.second_derivative[0:int(0.05*self.capture.sample_rate)])
+        print("The threshold is:", lower_threshold)
 
         for start in range(0, len(self.capture.second_derivative), step_size):
             end = min(start + window_size, len(self.capture.second_derivative))
             window = self.capture.second_derivative[start:end]
             
-            peaks = rfid.derivative_burst_detection(window, self.capture.sample_rate, percentile=99.98)
+            # Figure out the threshold
+
+            peaks = rfid.derivative_burst_detection(window, self.capture.sample_rate, percentile=99.98, threshold = lower_threshold)
             #append peaks to capture.peaks, but adjust for the window offset
       
 
@@ -452,6 +462,7 @@ class RFIDProcessor:
         print(f"Assigned {matched} RN16 bursts from {len(intervals)} reader intervals")
         print(f"Unassigned: {sum(1 for b in self.capture.bursts if b.burst_type == 'rn16' and b.tag_id == -1)}")
 
+        return uniqe_epcs
 
 def plot_phase_rssi(processor, reader_events=None):
     bursts = [b for b in processor.capture.bursts 
@@ -470,7 +481,7 @@ def plot_phase_rssi(processor, reader_events=None):
     phases_unwrapped = rfid.custom_phase_unwrap(phases)
     corrected_phases_unwrapped = rfid.custom_phase_unwrap(corrected_phases)
 
-    fig, axes = plt.subplots(4, 1, figsize=(14, 10))
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10))
 
     axes[0].plot(times, phases, 'bo-', alpha=0.7, markersize=4)
     axes[0].set_ylabel('Phase (rad)')
@@ -490,10 +501,10 @@ def plot_phase_rssi(processor, reader_events=None):
     axes[2].set_title('RSSI', fontweight='bold')
     axes[2].grid(True, alpha=0.3)
 
-    axes[3].plot(times, corrected_phases_unwrapped, 'mo-', alpha=0.7, markersize=4)
-    axes[3].set_ylabel('Phase (rad)')
-    axes[3].set_title('Frequency-Corrected Phase', fontweight='bold')
-    axes[3].grid(True, alpha=0.3)
+    # axes[3].plot(times, corrected_phases_unwrapped, 'mo-', alpha=0.7, markersize=4)
+    # axes[3].set_ylabel('Phase (rad)')
+    # axes[3].set_title('Frequency-Corrected Phase', fontweight='bold')
+    # axes[3].grid(True, alpha=0.3)
 
     for ax in axes:
         ax.set_xlabel('Time (s)')
@@ -513,12 +524,13 @@ def plot_phase_rssi_per_tag(processor, reader_events=None):
     
     tag_ids = sorted(set(b.tag_id for b in processor.capture.bursts if b.burst_type == 'rn16' and b.phase != 0.0 and b.tag_id != -1))
 
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+    fig, axes = plt.subplots(2, 1, figsize=(14, 10))
 
     colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
 
     def tag_label(tag_id):
         if 0 <= tag_id < len(IDEAL_EPCs):
+            print(IDEAL_EPCs[tag_id])
             return IDEAL_EPCs[tag_id].replace(':', '')[-4:]
         return str(tag_id)
 
@@ -548,6 +560,117 @@ def plot_phase_rssi_per_tag(processor, reader_events=None):
     axes[1].grid(True, alpha=0.3)
     axes[1].legend()
 
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_capture(processor, signal_obj, output_file=None, event_lines=None, plot_event = 50, reader_events = None):
+    """Plot a capture from an RFIDSignal object."""
+    samples = signal_obj.samples
+    sample_rate = signal_obj.sample_rate
+    center_freq = signal_obj.center_freq
+
+    tag_ids = sorted(set(b.tag_id for b in processor.capture.bursts if b.burst_type == 'rn16' and b.phase != 0.0 and b.tag_id != -1))
+
+
+    print("Generating plots...")
+    
+    startIndex = 0
+    endIndex = len(samples)
+
+    if(plot_event > 0):
+        for event_name, event_data in event_lines.items():
+            label = event_data.get('label', event_name)[0:4]
+            print(label)
+            if(label != 'RN16'):
+                continue
+        
+            indices = event_data['indices']
+            burst_idx = (plot_event - 1) * 2
+            if burst_idx + 1 < len(indices):
+                startIndex = max(0, indices[burst_idx] - 800)
+                endIndex = min(len(samples), indices[burst_idx + 1] + 5000)
+                print(f"Zooming to burst {plot_event} of '{event_name}': {startIndex} to {endIndex}")
+                break            
+            print(label)
+
+
+
+    t = np.arange(len(samples)) / sample_rate
+
+    fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+
+    # non_zero_indices = np.where(np.abs(samples) > 1e-6)[0]
+    # if len(non_zero_indices) > 0:
+    #     start_idx = max(0, non_zero_indices[0] - int(0.01 * sample_rate))
+    #     end_idx = min(len(samples), non_zero_indices[-1] + int(0.01 * sample_rate))
+    #     samples = samples[start_idx:end_idx]
+    #     t = t[start_idx:end_idx]
+
+
+    print("Startindex:", startIndex, "Endindex:", endIndex)
+    
+    
+
+    axes[0].plot(t[startIndex:endIndex], np.abs(samples)[startIndex:endIndex], linewidth=0.5, color='green')
+    axes[0].set_title('I/Q Magnitude', fontweight='bold')
+    axes[0].set_xlabel('Time (s)')
+    axes[0].set_ylabel('Magnitude')
+    axes[0].grid(True, alpha=0.3)
+
+    # if event_lines is not None:
+    #     i = 0
+    #     for event_name, event_data in event_lines.items():
+
+    
+    #         indices = event_data['indices']        
+    #         color = event_data.get('color', 'black')
+    #         linestyle = event_data.get('linestyle', '--')
+    #         label = event_data.get('label', event_name)
+    #         for i, idx in enumerate(indices):
+    #             if startIndex <= idx <= endIndex:
+    #                 axes[0].axvline(idx / sample_rate, color=color, linestyle=linestyle,
+    #                             alpha=0.7, linewidth=1.5,
+    #                             label=label if i == 0 else '')
+    #     axes[0].legend(loc='upper right')
+
+
+    if(plot_event == 0):
+        axes[1].plot(t[startIndex+2:endIndex], signal_obj.second_derivative[startIndex:endIndex], linewidth=0.5, color='orange')
+    else:
+        axes[1].plot(t[startIndex:endIndex], signal_obj.second_derivative[startIndex:endIndex], linewidth=0.5, color='orange')    
+    axes[1].set_title('Second Derivative', fontweight='bold')
+    axes[1].set_xlabel('Time (s)')
+    axes[1].set_ylabel('dx/dt')
+    axes[1].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    if output_file:
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"✓ Plot saved: {output_file}")
+
+
+    from scipy.ndimage import uniform_filter1d
+
+    # #uniform moving average filter
+    # window_samples = int(3e-5 * sample_rate)  # 50us window
+    # envelope = np.abs(samples)
+    # moving_avg = rfid.uniform_filter(envelope, window_samples)
+    # normalized = envelope - moving_avg  # signal oscillates around zero
+
+    # #do fft, then set all frequencies above 10khz to zero, then do inverse fft
+    # fft = np.fft.fft(envelope)
+    # freqs = np.fft.fftfreq(len(envelope), d=1/sample_rate)
+    # fft[np.abs(freqs) > 100e3] = 0
+    # normalized = np.fft.ifft(fft)
+
+    # axes[2].plot(envelope-normalized, linewidth=0.5, color='purple')
+    # axes[2].set_title('Moving Average of First EPC Burst', fontweight='bold')
+
+
+    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+
     for tag_id in sorted(tag_ids):
         color = colors[tag_id % len(colors)]
         tag_bursts = [b for b in processor.capture.bursts if b.tag_id == tag_id]
@@ -570,90 +693,113 @@ def plot_phase_rssi_per_tag(processor, reader_events=None):
 
         #filter away too low values
 
-        
-
-
         axes[2].plot(peak_times, peak_values, 'o', markersize=3, 
-                    color=color, label=f'Tag {tag_id}')
-    plt.tight_layout()
+                    color=color, label=f'Tag {IDEAL_EPCs[tag_id].replace(":", "")[-4:]}')
+    axes[2].set_title('Second Derivative Peaks', fontweight='bold')
+    axes[2].set_xlabel('Time (s)')
+    axes[2].set_ylabel('Peak Value')
+    axes[2].grid(True, alpha=0.3)
+    axes[2].legend(loc='upper right')
+
     plt.show()
 
 
-def plot_capture(signal_obj, output_file=None, event_lines=None, reader_events=None):
+
+
+def plot_samples(signal_obj, output_file=None, event_lines=None, plot_event = 50, reader_events = None):
     """Plot a capture from an RFIDSignal object."""
     samples = signal_obj.samples
     sample_rate = signal_obj.sample_rate
     center_freq = signal_obj.center_freq
 
     print("Generating plots...")
-    t = np.arange(len(samples)) / sample_rate
     
-    fig, axes = plt.subplots(3, 1, figsize=(14, 10))
+    startIndex = 0
+    endIndex = len(samples)
 
-    # non_zero_indices = np.where(np.abs(samples) > 1e-6)[0]
-    # if len(non_zero_indices) > 0:
-    #     start_idx = max(0, non_zero_indices[0] - int(0.01 * sample_rate))
-    #     end_idx = min(len(samples), non_zero_indices[-1] + int(0.01 * sample_rate))
-    #     samples = samples[start_idx:end_idx]
-    #     t = t[start_idx:end_idx]
+    if(plot_event > 0):
+        for event_name, event_data in event_lines.items():
+            label = event_data.get('label', event_name)[0:4]
+            print(label)
+            if(label != 'RN16'):
+                continue
+        
+            indices = event_data['indices']
+            burst_idx = (plot_event - 1) * 2
+            if burst_idx + 1 < len(indices):
+                startIndex = max(0, indices[burst_idx] - 800)
+                endIndex = min(len(samples), indices[burst_idx + 1] + 5000)
+                print(f"Zooming to burst {plot_event} of '{event_name}': {startIndex} to {endIndex}")
+                break            
+            print(label)
+
+
 
     t = np.arange(len(samples)) / sample_rate
 
-    axes[0].plot(t, np.abs(samples), linewidth=0.5, color='green')
-    axes[0].set_title('I/Q Magnitude', fontweight='bold')
-    axes[0].set_xlabel('Time (s)')
-    axes[0].set_ylabel('Magnitude')
+    fig, axes = plt.subplots(figsize=(14, 10))
+
+    axes.plot(t[startIndex:endIndex], np.abs(samples)[startIndex:endIndex], linewidth=0.5, color='green')
+    axes.set_title('I/Q Magnitude', fontweight='bold')
+    axes.set_xlabel('Time (s)')
+    axes.set_ylabel('Magnitude')
+    axes.grid(True, alpha=0.3)
+
+    # if event_lines is not None:
+    #     i = 0
+    #     for event_name, event_data in event_lines.items():
+
+    
+    #         indices = event_data['indices']        
+    #         color = event_data.get('color', 'black')
+    #         linestyle = event_data.get('linestyle', '--')
+    #         label = event_data.get('label', event_name)
+    #         for i, idx in enumerate(indices):
+    #             if startIndex <= idx <= endIndex:
+    #                 axes.axvline(idx / sample_rate, color=color, linestyle=linestyle,
+    #                             alpha=0.7, linewidth=1.5,
+    #                             label=label if i == 0 else '')
+    #     axes.legend(loc='upper right')
+
+
+
+    plt.show()
+
+
+
+
+
+
+def plot_iq(signal_obj, output_file=None, start_index=0, end_index=None):
+    """Plot the I and Q components of a capture separately."""
+    samples = signal_obj.samples
+    sample_rate = signal_obj.sample_rate
+
+    if end_index is None:
+        end_index = len(samples)
+
+    segment = samples[start_index:end_index]
+    t = np.arange(start_index, end_index) / sample_rate
+    I = np.real(segment)
+    Q = np.imag(segment)
+
+    fig, axes = plt.subplots(2, 1, figsize=(14, 8), sharex=True)
+    axes[0].plot(t, I, color='blue', linewidth=0.5)
+    axes[0].set_title('I Component', fontweight='bold')
+    axes[0].set_ylabel('I')
     axes[0].grid(True, alpha=0.3)
 
-    if event_lines is not None:
-        for event_name, event_data in event_lines.items():
-            indices = event_data['indices']
-            color = event_data.get('color', 'black')
-            linestyle = event_data.get('linestyle', '--')
-            label = event_data.get('label', event_name)
-            for i, idx in enumerate(indices):
-                axes[0].axvline(idx / sample_rate, color=color, linestyle=linestyle,
-                               alpha=0.7, linewidth=1.5,
-                               label=label if i == 0 else '')
-        axes[0].legend(loc='upper right')
-
-    # axes[1].plot(t, np.abs(signal_obj.envelope), linewidth=0.5, color='blue')
-    # axes[1].set_title('Preprocessed I/Q Envelope', fontweight='bold')
-    # axes[1].set_xlabel('Time (s)')
-    # axes[1].set_ylabel('Envelope')
-    # axes[1].grid(True, alpha=0.3)
-    
-
-    axes[1].plot(t[2:], signal_obj.second_derivative, linewidth=0.5, color='orange')
-    axes[1].set_title('Second Derivative', fontweight='bold')
+    axes[1].plot(t, Q, color='red', linewidth=0.5)
+    axes[1].set_title('Q Component', fontweight='bold')
     axes[1].set_xlabel('Time (s)')
-    axes[1].set_ylabel('dx/dt')
+    axes[1].set_ylabel('Q')
     axes[1].grid(True, alpha=0.3)
 
     plt.tight_layout()
     if output_file:
         plt.savefig(output_file, dpi=150, bbox_inches='tight')
-        print(f"✓ Plot saved: {output_file}")
-
-
-    from scipy.ndimage import uniform_filter1d
-
-    #uniform moving average filter
-    window_samples = int(3e-5 * sample_rate)  # 50us window
-    envelope = np.abs(samples)
-    moving_avg = rfid.uniform_filter(envelope, window_samples)
-    normalized = envelope - moving_avg  # signal oscillates around zero
-
-    #do fft, then set all frequencies above 10khz to zero, then do inverse fft
-    fft = np.fft.fft(envelope)
-    freqs = np.fft.fftfreq(len(envelope), d=1/sample_rate)
-    fft[np.abs(freqs) > 100e3] = 0
-    normalized = np.fft.ifft(fft)
-
-    axes[2].plot(envelope-normalized, linewidth=0.5, color='purple')
-    axes[2].set_title('Moving Average of First EPC Burst', fontweight='bold')
+        print(f"✓ I/Q plot saved: {output_file}")
     plt.show()
-
 
 
 def plot_reader(reader_session):
@@ -666,7 +812,7 @@ def plot_reader(reader_session):
     
     fig, axes = plt.subplots(2, 1, figsize=(14, 8))
     
-    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
     unique_epcs = sorted(set(e.epc for e in reader_session.events))
     
     for i, epc in enumerate(unique_epcs):
@@ -679,6 +825,11 @@ def plot_reader(reader_session):
 
         phases = rfid.custom_phase_unwrap(phases)
 
+        #if the last 4 chars are 1111, set it to A190
+        if epc.endswith('1111'):
+            epc = 'A190'
+        if epc.endswith('2222'):
+            epc = '1A48'
         
         axes[0].plot(times, phases, 'o-', alpha=0.7, markersize=4, color=color, label=f'Tag {epc}')
         axes[1].plot(times, rssis, 'o-', alpha=0.7, markersize=4, color=color, label=f'Tag {epc}')
@@ -725,6 +876,34 @@ def detect_reader_bursts(iq_data, sample_rate):
     return np.array(filtered)
 
 
+
+def plot_phasor(signal_obj, start_index=0, end_index=None, title='IQ Phasor'):
+    samples = signal_obj.samples
+    if end_index is None:
+        end_index = len(samples)
+    
+    segment = samples[start_index:end_index]
+    I = np.real(segment)
+    Q = np.imag(segment)
+    t = np.arange(len(segment))  # color by sample index = time
+    
+    fig, ax = plt.subplots(figsize=(8, 8))
+    sc = ax.scatter(I, Q, c=t, cmap='viridis', s=1, alpha=0.7)
+    plt.colorbar(sc, ax=ax, label='Sample index (time →)')
+    
+    ax.set_xlabel('I (In-phase)')
+    ax.set_ylabel('Q (Quadrature)')
+    ax.set_title(title, fontweight='bold')
+    ax.set_aspect('equal')
+    ax.grid(True, alpha=0.3)
+    ax.axhline(0, color='k', linewidth=0.5)
+    ax.axvline(0, color='k', linewidth=0.5)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
 def main():
     parser = argparse.ArgumentParser(description='Process RFID I/Q data')
     parser.add_argument('input', help='Input file prefix (without _iq.npy)')
@@ -735,6 +914,8 @@ def main():
     parser.add_argument('--plot-phase', action='store_true')
     parser.add_argument('--r', action='store_true')
     parser.add_argument('--no-match', action='store_true')
+    parser.add_argument('--event', type=int, default=0)
+    parser.add_argument('--samples', action='store_true')
 
     args = parser.parse_args()
 
@@ -751,8 +932,9 @@ def main():
     processor.sliding_window_peak_detection()  # fixed capitalisation
     processor.extract_measurements()           # no longer returns anything meaningful
     if(args.r):
-        processor.assign_tag_ids_from_reader(reader_session)  # assign tag IDs based on reader events
+        unique_epcs = processor.assign_tag_ids_from_reader(reader_session)  # assign tag IDs based on reader events
     else:
+        unique_epcs = None
         if args.no_match:
             matches = processor.decode_epcs_without_shifting(IDEAL_EPCs)  # pass known EPCs for matching        
         else:
@@ -764,20 +946,26 @@ def main():
 
     
 
-    if args.plot:
+    if args.plot or args.samples:
         event_lines = {}
         colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown', 'pink', 'gray', 'olive', 'cyan']
         tag_ids = set(b.tag_id for b in signal.bursts if b.tag_id >= 0)
-        
+    
         for i, tag_id in enumerate(sorted(tag_ids)):
             color = colors[i % len(colors)]
+
+            if unique_epcs and tag_id < len(unique_epcs):
+                label = f'Tag {unique_epcs[tag_id][-4:]}'
+            else:
+                label = f'Tag {tag_id}'
+
             event_lines[f'rn16_tag_{tag_id}'] = {
                 'indices': [idx for b in signal.bursts if b.burst_type == 'rn16' and b.tag_id == tag_id for idx in [b.start_index, b.end_index]],
-                'color': color, 'linestyle': '--', 'label': f'RN16 Tag {tag_id}'
+                'color': color, 'linestyle': '--', 'label': f'RN16 {label}'
             }
             event_lines[f'epc_tag_{tag_id}'] = {
                 'indices': [idx for b in signal.bursts if b.burst_type == 'epc' and b.tag_id == tag_id for idx in [b.start_index, b.end_index]],
-                'color': color, 'linestyle': '-', 'label': f'EPC Tag {tag_id}'
+                'color': color, 'linestyle': '-', 'label': f'EPC {label}'
             }
         
         # Add unassigned bursts
@@ -794,14 +982,27 @@ def main():
                 'indices': unassigned_epc,
                 'color': 'red', 'linestyle': '--', 'label': 'EPC Unassigned'
             }
-
-        plot_capture(signal, event_lines=event_lines,
-                     reader_events=reader_session.events or None)
+        if args.plot:
+            plot_capture(processor, signal, event_lines=event_lines,
+                        reader_events=reader_session.events or None, plot_event=args.event)
+    
+        if args.samples:
+            plot_samples(signal, event_lines=event_lines,
+                        reader_events=reader_session.events or None, plot_event=args.event)
+            
+        
 
     if args.plot_phase:
         plot_phase_rssi_per_tag(processor, reader_session.events or None)
 
+
     plot_reader(reader_session)
 
+    # # Grab CW segment before first burst
+    # first_burst = signal.bursts[100]
+    # cw_end = first_burst.start_index  + 0.0005 * signal.sample_rate  
+    # cw_start = cw_end - int(0.01 * signal.sample_rate)  # 100us of CW
+    # plot_phasor(signal, start_index=5000000, end_index=10000000, title='CW Phasor Rotation')
+    #plot_iq(signal)
 if __name__ == "__main__":
     main()
